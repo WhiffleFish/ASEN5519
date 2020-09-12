@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import matplotlib.pyplot as plt
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
@@ -164,3 +165,20 @@ def get_m_coords(qstart, qgoal):
         m_line_coords = add_pos(m_line_coords, pos)
 
     return m_line_coords
+
+
+def plot_path(path, W, cmap='viridis', extents=None, pad=None):
+    fig, ax = plt.subplots(figsize=(12, 7))
+    rgbs = plt.cm.get_cmap(cmap)(np.linspace(0, 1, path.shape[0]))
+    if extents:
+        xmin = extents[0]
+        ymin = extents[2]
+        extents = np.array(extents) + np.array([-pad-0.5, pad-0.5, -pad-0.5, pad-0.5])
+        ax.imshow(W.T, cmap='gray_r', origin='lower', extent=list(extents))
+        ax.plot(np.array(path)[:, 0]+(xmin-pad), np.array(path)[:, 1]+(ymin-pad))
+        ax.scatter(np.array(path)[:, 0]+(xmin-pad), np.array(path)[:, 1]+(ymin-pad), c=rgbs)    
+    else:
+        ax.imshow(W.T,cmap='gray_r', origin='lower')
+        ax.plot(np.array(path)[:, 0], np.array(path)[:, 1])
+        ax.scatter(np.array(path)[:, 0], np.array(path)[:, 1], c=rgbs)
+    return fig, ax
