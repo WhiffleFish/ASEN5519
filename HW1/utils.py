@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 LOGGER = logging.getLogger()
-LOGGER.setLevel(logging.INFOß)
+LOGGER.setLevel(logging.INFO)
 
 
 def heading_from_points(p1, p2, deg=False):
@@ -147,3 +147,20 @@ def shortest_path_to_ql(BF_history, BF_distances):
     logging.debug(f"QL Path: \n{path}")
     assert (path[-1] == qL).all(), "End of shortest path to qL is not equal to qL"
     return path
+
+
+def get_m_coords(qstart, qgoal):
+    """
+    INPUT:
+        qstart, qgoal -- 1x2 np.ndarrays
+    OUTPUT:
+        m_line_coords -- nx2 ndarray of m-line coordinates
+    """
+    pos = qstart
+    m_line_coords = pos.copy().reshape(1, -1)
+
+    while (pos != qgoal).any():
+        pos += MTG_move(pos, qgoal)
+        m_line_coords = add_pos(m_line_coords, pos)
+
+    return m_line_coords
