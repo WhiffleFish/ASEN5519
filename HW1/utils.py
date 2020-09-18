@@ -133,6 +133,7 @@ def shortest_path_to_ql(BF_history, BF_distances):
     assert (BF_history[0] == BF_history[-1]).all(), (
         "{BF_history[0]} != {BF_history[1]} -- Boundary following path does not start and end at qH"
     )
+    # findql(BF_history[::-1], BF_distances[::-1])
     index, qL = find_ql(BF_history, BF_distances, hist_loc=True)
 
     # Get rid of repeated qH
@@ -176,9 +177,12 @@ def plot_path(path, W, cmap='viridis', extents=None, pad=None):
         extents = np.array(extents) + np.array([-pad-0.5, pad-0.5, -pad-0.5, pad-0.5])
         ax.imshow(W.T, cmap='gray_r', origin='lower', extent=list(extents))
         ax.plot(np.array(path)[:, 0]+(xmin-pad), np.array(path)[:, 1]+(ymin-pad))
-        ax.scatter(np.array(path)[:, 0]+(xmin-pad), np.array(path)[:, 1]+(ymin-pad), c=rgbs)    
+        sct = ax.scatter(np.array(path)[:, 0]+(xmin-pad), np.array(path)[:, 1]+(ymin-pad), c=rgbs, alpha=0.8)    
     else:
         ax.imshow(W.T,cmap='gray_r', origin='lower')
         ax.plot(np.array(path)[:, 0], np.array(path)[:, 1])
-        ax.scatter(np.array(path)[:, 0], np.array(path)[:, 1], c=rgbs)
+        sct = ax.scatter(np.array(path)[:, 0], np.array(path)[:, 1], c=rgbs, alpha=0.8)
+    
+    cbar = fig.colorbar(sct, ticks=[0,1])
+    cbar.ax.set_yticklabels(['START', 'END'])
     return fig, ax
