@@ -73,6 +73,8 @@ def distance(p1, p2):
 
     return np.linalg.norm(p1-p2)
 
+def get_total_distance(path):
+    return sum([distance(path[i-1], path[i]) for i in range(1,len(path))])
 
 def MTG_move(pos, qgoal):
     """

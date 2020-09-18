@@ -1,6 +1,15 @@
 from utils import *
 
 def BUG1(qstart, qgoal, W):
+    """
+    INPUT:
+        qstart -- (x,y) np.ndarray
+        qgoal -- (x,y) np.ndarray
+        W -- Workspace np.ndarray
+    OUTPUT:
+        path -- nx2 np.ndarray
+        distance -- float
+    """
     pos = qstart.copy()
     move_history = pos.copy().reshape(1,-1)
     while True:
@@ -47,10 +56,19 @@ def BUG1(qstart, qgoal, W):
         pos = move_history.copy()[-1]
         logging.debug(f"END QL PATH -- POS : {pos}\n\n")
 
-    return move_history
+    return move_history, get_total_distance(move_history)
 
 
 def BUG2(qstart, qgoal, W):
+    """
+    INPUT:
+        qstart -- (x,y) np.ndarray
+        qgoal -- (x,y) np.ndarray
+        W -- Workspace np.ndarray
+    OUTPUT:
+        path -- nx2 np.ndarray
+        distance -- float
+    """
     pos = qstart.copy()
     move_history = pos.copy().reshape(1,-1)
     m_line_coords = get_m_coords(qstart.copy(), qgoal)
@@ -86,4 +104,4 @@ def BUG2(qstart, qgoal, W):
             move_history = add_pos(move_history, pos)
             BF_history = add_pos(BF_history, pos)
 
-    return move_history
+    return move_history, get_total_distance(move_history)
