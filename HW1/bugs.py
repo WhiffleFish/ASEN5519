@@ -53,7 +53,7 @@ def BUG1(qstart, qgoal, W):
 def BUG2(qstart, qgoal, W):
     pos = qstart.copy()
     move_history = pos.copy().reshape(1,-1)
-    m_line_coords = get_m_coords(qstart, qgoal)
+    m_line_coords = get_m_coords(qstart.copy(), qgoal)
 
     while True:
         while (pos != qgoal).any():

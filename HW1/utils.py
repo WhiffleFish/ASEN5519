@@ -133,19 +133,17 @@ def shortest_path_to_ql(BF_history, BF_distances):
     assert (BF_history[0] == BF_history[-1]).all(), (
         "{BF_history[0]} != {BF_history[1]} -- Boundary following path does not start and end at qH"
     )
-    # findql(BF_history[::-1], BF_distances[::-1])
+    rev_index, rev_ql = find_ql(BF_history[::-1], BF_distances[::-1], hist_loc=True)
     index, qL = find_ql(BF_history, BF_distances, hist_loc=True)
-
-    # Get rid of repeated qH
-    hist = BF_history.copy()[:-1]
-
-    d1 = index
-    d2 = len(hist) - index
-
-    if d1 <= d2:
-        path = hist[1:index+1]
+    
+    hist = BF_history.copy()
+    
+    if rev_index < index:
+        index, qL = rev_index, rev_ql
+        path = hist[::-1][1:index+1]
     else:
-        path = hist[index:][::-1]
+        path = hist[1:index+1]
+
     logging.debug(f"QL Path: \n{path}")
     assert (path[-1] == qL).all(), "End of shortest path to qL is not equal to qL"
     return path
@@ -168,9 +166,10 @@ def get_m_coords(qstart, qgoal):
     return m_line_coords
 
 
-def plot_path(path, W, cmap='viridis', extents=None, pad=None):
-    fig, ax = plt.subplots(figsize=(12, 7))
+def plot_path(path, W, cmap='viridis', extents=None, pad=None, cbar=True):
+    fig, ax = plt.subplots(figsize=(15, 10))
     rgbs = plt.cm.get_cmap(cmap)(np.linspace(0, 1, path.shape[0]))
+    
     if extents:
         xmin = extents[0]
         ymin = extents[2]
@@ -182,7 +181,104 @@ def plot_path(path, W, cmap='viridis', extents=None, pad=None):
         ax.imshow(W.T,cmap='gray_r', origin='lower')
         ax.plot(np.array(path)[:, 0], np.array(path)[:, 1])
         sct = ax.scatter(np.array(path)[:, 0], np.array(path)[:, 1], c=rgbs, alpha=0.8)
-    
-    cbar = fig.colorbar(sct, ticks=[0,1])
-    cbar.ax.set_yticklabels(['START', 'END'])
+
+    if cbar:
+        cbar = fig.colorbar(sct, ticks=[0,1], shrink=0.75)
+        cbar.ax.set_yticklabels(['START', 'END'])
     return fig, ax
+
+
+def workspace1_data():
+    """
+    Retrive (qstart, qgoal, Workspace) tuple for assignment workspace 1
+    """
+    WO1 = [(1,1),(2,1),(2,5),(1,5)]
+    WO2 = [(3,4),(4,4),(4,12),(3,12)]
+    WO3 = [(3,12),(12,12),(12,13),(3,13)]
+    WO4 = [(12,5),(13,5),(13,13,),(12,13)]
+    WO5 = [(6,5),(12,5),(12,6),(6,6)]
+    qstart = (0,0)
+    qgoal = (10,10)
+
+    obstacles = [WO1, WO2, WO3, WO4, WO5]
+
+    W = np.zeros((15, 15))
+
+    for obs in obstacles:
+        xs = sorted(list(set([coord[0] for coord in obs])))
+        ys = sorted(list(set([coord[1] for coord in obs])))
+
+        assert (len(xs), len(ys)) == (2,2)
+
+        W[xs[0]:xs[1], ys[0]:ys[1]] = 1
+
+    qstart = np.array(qstart)
+    qgoal = np.array(qgoal)
+
+    return qstart, qgoal, W
+
+
+def workspace2_data(pad=7):
+    """
+    Retrive (qstart, qgoal, Workspace, extents, pad) tuple for assignment workspace 2
+    """
+    WO1 = [(-6,-6), (25,-6), (25,-5), (-6,-5)]
+    WO2 = [(-6,5),(30,5),(30,6),(-6,6)]
+    WO3 = [(-6,-5),(-5,-5),(-5,5),(-6,5)]
+    WO4 = [(4,-5),(5,-5),(5,1),(4,1)]
+    WO5 = [(9,0),(10,0),(10,5),(9,5)]
+    WO6 = [(14,-5),(15,-5),(15,1),(14,1)]
+    WO7 = [(19,0),(20,0),(20,5),(19,5)]
+    WO8 = [(24,-5),(25,-5),(25,1),(24,1)]
+    WO9 = [(29,0),(30,0),(30,5),(29,5)]
+
+    obstacles = [WO1, WO2, WO3, WO4, WO5, WO6, WO7, WO8, WO9]
+
+    qstart = (0,0)
+    qgoal = (35,0)
+
+    xmin = float('inf')
+    xmax = float('-inf')
+    ymin = float('inf')
+    ymax = float('-inf')
+
+    for obs in obstacles:
+        xs = sorted(list(set([coord[0] for coord in obs])))
+        ys = sorted(list(set([coord[1] for coord in obs])))
+        if xs[0] < xmin: xmin = xs[0]
+        if xs[1] > xmax: xmax = xs[1]
+        if ys[0] < ymin: ymin = ys[0]
+        if ys[1] > ymax: ymax = ys[1]
+
+
+    xrange, yrange = (xmax-xmin, ymax-ymin)
+
+    # Transform indices to only be positive with some padding
+    def transform(x,y):
+        '''Real Position -> Translated Matrix Indices'''
+        return (x+(pad-xmin),y+(pad-ymin))
+
+    def itransform(x,y):
+        '''Translated Matrix Indices -> Real Position'''
+        return (x-(pad-xmin),y-(pad-ymin))
+
+
+    qstart = np.array(transform(*qstart))
+    qgoal = np.array(transform(*qgoal))
+
+    W = np.zeros((xrange+2*pad,yrange+2*pad))
+
+    for obs in obstacles.copy():
+        for i,(x,y) in enumerate(obs):
+            obs[i] = transform(x,y)
+            
+        xs = sorted(list(set([coord[0] for coord in obs])))
+        ys = sorted(list(set([coord[1] for coord in obs])))
+        
+        assert (len(xs),len(ys)) == (2,2)
+        
+        W[xs[0]:xs[1],ys[0]:ys[1]] = 1
+
+    extents = [xmin, xmax, ymin, ymax]
+
+    return qstart, qgoal, W, extents, pad
