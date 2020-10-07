@@ -5,6 +5,9 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
 
 def angle_between(p1,p2):
+    """
+    Calculate angle between points p1 and p2 (numpy ndarrays)
+    """
     diff = p2-p1
     angle = np.arctan2(*diff[::-1])
     if angle < 0:
@@ -13,6 +16,9 @@ def angle_between(p1,p2):
 
 
 def find_starting_element_index(arr):
+    """
+    Determine correct starting element for C-space conversion algorithm
+    """
     # y must be minimum of all
     # x must be minimum of set of coords containing minimal y
     arr = arr.copy()
@@ -21,11 +27,17 @@ def find_starting_element_index(arr):
 
 
 def correct_order(arr):
+    """
+    Determine order of points for C-space conversion algorithm
+    """
     ind = find_starting_element_index(arr)
     return np.roll(arr, -ind, axis=0)
 
 
 def rotation(theta):
+    """
+    Rotation matrix
+    """
     R = np.array([[np.cos(theta), -np.sin(theta)],
                   [np.sin(theta), np.cos(theta)]])
     return R

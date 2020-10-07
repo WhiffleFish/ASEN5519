@@ -3,7 +3,11 @@ from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
 # Jacobian with optional end affector angle
-def jacobian(z, x, y,theta3=None):
+def jacobian(z, x, y, theta3=None):
+    """
+    Determine Jacobian of 3-link system given some end position (x,y) and configuration tuple
+    z containing theta1, theta2, and theta3
+    """
     if theta3 is None:
         t1,t2,t3 = z
     else:
@@ -36,6 +40,9 @@ def jacobian(z, x, y,theta3=None):
 
 # Error function with optional end affector angle
 def func(z, x, y, theta3=None):
+    """
+    Determine error array for given configuration and desired end location
+    """
     if theta3 is None:
         t1,t2,t3 = z
     else:
@@ -52,6 +59,9 @@ def func(z, x, y, theta3=None):
 
 
 def find_angles(x,y,theta3=None, full_output=True):
+    """
+    Solve numerically for some desired end position (x,y)
+    """
     if theta3 is None:
         x0 = np.ones(3)*np.pi/4
     else:
@@ -60,6 +70,9 @@ def find_angles(x,y,theta3=None, full_output=True):
 
 
 def get_all_angles(x, y, N=1000):
+    """
+    Sweep theta3 from 0 to 360 deg to find all corresponding theta1 and theta2 numerically
+    """
     t1 = []
     t2 = []
     t3 = []
@@ -78,6 +91,9 @@ def get_all_angles(x, y, N=1000):
 
 
 def scatter_angles(t1, t2, t3):
+    """
+    Plot output of get_all_angles
+    """
     fig, ax = plt.subplots(1,1,figsize=(12,7))
     ax.scatter(t3,t1,s=3, label=r"$\theta_{1}$ (deg)")
     ax.scatter(t3,t2,s=3, label=r"$\theta_{2}$ (deg)")

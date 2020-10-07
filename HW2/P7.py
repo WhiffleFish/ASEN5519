@@ -149,6 +149,17 @@ def scatter_angles(t1, t2, t3):
 
 
 def end_pos(t1, t2, t3, l1, l2, l3):
+    """
+    INPUT:
+        t1 -- theta1
+        t2 -- theta2(deg)
+        t3 -- theta3(deg)
+        l1 -- arm 1 length
+        l2 -- arm 2 length
+        l3 -- arm 3 length
+    OUTPUT:
+        resulting position (x,y)
+    """
     x = l1*np.cos(t1) + l2*np.cos(t1 + t2) + l3*np.cos(t1 + t2 + t3)
     y = l1*np.sin(t1) + l2*np.sin(t1 + t2) + l3*np.sin(t1 + t2 + t3)
     return x, y
