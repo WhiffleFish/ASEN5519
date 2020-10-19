@@ -189,7 +189,9 @@ class RectGradDescent(object):
         path = self.q0.copy()
 
         length = 0
-        while self.distance(q,self.qgoal) > self.eps:
+        i = 0 # timeout
+        while (self.distance(q,self.qgoal) > self.eps) and (i<=50):
+            i += 1
             U_grad = self.Uatt_grad(q)
             for obs in self.obstacles:
                 U_grad += obs.Urep_grad(q)
