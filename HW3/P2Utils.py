@@ -94,7 +94,7 @@ class Obstacle(object):
 
 
 class RectGradDescent(object):
-    def __init__(self, q0, qgoal, obstacles, d_star=5, zeta=0.1, eps=0.25, N=50):
+    def __init__(self, q0, qgoal, obstacles, d_star=5, zeta=0.1, eps=0.25, N=50, max_iter=50):
         self.q0 = np.array(q0,dtype=np.float64)
         self.qgoal = np.array(qgoal)
         self.obstacles = obstacles
@@ -102,6 +102,7 @@ class RectGradDescent(object):
         self.zeta = zeta
         self.eps = eps
         self.N = N
+        self.max_iter = max_iter
 
         min_x, min_y = float('inf'), float('inf')
         max_x, max_y = float('-inf'), float('-inf')
@@ -190,7 +191,7 @@ class RectGradDescent(object):
 
         length = 0
         i = 0 # timeout
-        while (self.distance(q,self.qgoal) > self.eps) and (i<=50):
+        while (self.distance(q,self.qgoal) > self.eps) and (i<=self.max_iter):
             i += 1
             U_grad = self.Uatt_grad(q)
             for obs in self.obstacles:

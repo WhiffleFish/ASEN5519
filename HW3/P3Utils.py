@@ -10,11 +10,11 @@ class Obstacle(object):
 
 
 class WaveFront(object):
-    def __init__(self, q0, qgoal, obstacles, pad=2, dx=0.25):
+    def __init__(self, q0, qgoal, obstacles, pad=2, dx=0.25, obs_grid=None, x=None, y=None):
         self.q0 = np.array(q0)
         self.qgoal = np.array(qgoal)
         self.obstacles = obstacles
-        self.dx = 0.25
+        self.dx = dx
 
         self.xlim, self.ylim = self.get_border_vals(q0,qgoal,obstacles, pad)
 
@@ -72,7 +72,6 @@ class WaveFront(object):
         self.WF_grid[tuple(self.qgoal)]
         self.WF_grid = self.wave_fill(self.WF_grid.copy(), [tuple(self.qgoal)])
         
-
     def update(self):
         def is_open(G,p):
                 return ([0,0] <= p).all() and (p < G.shape).all() and G[tuple(p)] == 0
@@ -117,7 +116,7 @@ class WaveFront(object):
 
         # Convert path values from array indices to coordinate positions
         self.path = np.array([np.array([self.x[pt[1]],self.y[pt[0]]]) for pt in path])
-
+        self.path_length = (len(self.path)-1)*self.dx
 
 
     def plot_path(self,figsize=(12,7)):
