@@ -1,31 +1,62 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import logging
 
 class Obstacle(object):
     def __init__(self, xy, sx=1, sy=1):
+        '''
+        xy -- coordinates of lower-left corner of rectangular obstacle
+        sx -- width of obstacle
+        sy -- height of obstacle
+        '''
         self.xy = np.array(xy)
         self.sx = sx
         self.sy = sy
 
 
 class WaveFront(object):
-    def __init__(self, q0, qgoal, obstacles, pad=2, dx=0.25, obs_grid=None, x=None, y=None):
+    def __init__(self, q0, qgoal, obstacles=None, pad=2, dx=0.25, obs_grid=None, x=None, y=None):
+        '''
+        REQUIRED:
+            q0 -- Starting position
+            qgoal -- Goal Position
+        
+        CHOOSE:
+            obstacles -- array of Obstacle objects
+            dx -- grid granularity
+            pad -- (optional) grid padding. If pad=0, min and max values of inputted coordates touch edges of grid
+
+            obs_grid -- binary numpy array for obstacle grid
+            x -- numpy array corresponding to x values for obstacle grid
+            y -- numpy array corresponding to y values for obstacle grid    
+        '''
         self.q0 = np.array(q0)
         self.qgoal = np.array(qgoal)
         self.obstacles = obstacles
-        self.dx = dx
-
-        self.xlim, self.ylim = self.get_border_vals(q0,qgoal,obstacles, pad)
-
-        self.x = np.arange(self.xlim[0],self.xlim[1]+dx,dx)
-        self.y = np.arange(self.ylim[0],self.ylim[1]+dx,dx)
-        self.X, self.Y = np.meshgrid(self.x,self.y)
-
-        self.obs_grid = self.get_obstacle_grid(self.X, self.Y, obstacles)
-        self.update()
-
         
+
+        if obstacles:
+            self.dx = dx
+            self.xlim, self.ylim = self.get_border_vals(q0,qgoal,obstacles, pad)
+
+            # round to get eliminate floating point errors
+            self.x = np.arange(self.xlim[0],self.xlim[1]+dx,dx).round(10)
+            self.y = np.arange(self.ylim[0],self.ylim[1]+dx,dx).round(10)
+            self.X, self.Y = np.meshgrid(self.x,self.y)
+            self.obs_grid = self.get_obstacle_grid(self.X, self.Y, obstacles)
+            self.update()
+        else:
+            assert (obs_grid is not None) and x and y, "obs_grid, x array, and y array need to be provided"
+            self.x = x.round(10)
+            self.y = y.round(10)
+            self.dx = np.round(self.x[1]-self.x[0],10)
+            self.xlim = [x.min(), x.max()]
+            self.ylim = [y.min(), y.max()]
+            self.X, self.Y = np.meshgrid(self.x,self.y)
+            self.update()
+
+
     @staticmethod
     def get_border_vals(q0, qgoal, obstacles, pad):
         min_x, min_y = float('inf'), float('inf')
