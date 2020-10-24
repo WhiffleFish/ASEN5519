@@ -181,4 +181,3 @@ class WaveFront(object):
             ax.add_patch(Polygon(obs.verts))
         for i,(x1,y1,x2,y2) in enumerate(joint_coords):
             ax.plot([0,x1,x2],[0,y1,y2], c=rgbs[i])
-

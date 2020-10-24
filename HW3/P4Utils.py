@@ -112,13 +112,6 @@ class Cspace(object):
         for i, t1 in tqdm(enumerate(np.linspace(0,2*np.pi,N_theta)), total=N_theta):
             for j,t2 in enumerate(np.linspace(0,2*np.pi,N_theta)):
                 x1,y1,x2,y2 = self.joint_coords(t1,t2,l1=1,l2=1)
-                
-                # e0 = np.linalg.norm(np.array([x2,y2]) - self.q0)
-                # eg = np.linalg.norm(np.array([x2,y2]) - self.qgoal)
-                # if e0 < min_q0_error:
-                #     q0_angles = np.array([t1,t2])
-                # if eg < min_qg_error:
-                #     qg_angles = np.array([t1,t2])
 
                 for obstacle in obstacles:
                     
@@ -136,9 +129,6 @@ class Cspace(object):
 
                     if intersect:
                         break
-
-        # self.q0_angles = q0_angles
-        # self.qg_angles = qg_angles
 
         return Cspace_grid
 

@@ -4,18 +4,24 @@ from matplotlib.patches import Rectangle, Circle
 
 
 class Obstacle(object):
-    def __init__(self, xy, sx=1, sy=1, c=True, eta=0.1, Q_star=5):
+    def __init__(self, xy, sx=1, sy=1, c=True, eta=0.1, Q_star=5, circ = False):
         if c: # If centerpoint given, convert to lower-left coordinate position
             self.xy = np.array(xy) - np.array([0.5*sx,0.5*sy])
+            self.c = xy
         else:
-            self.xy = xy
+            self.xy = np.array(xy)
+            self.c = self.xy + np.array([0.5*sx,0.5*sy])
         
         self.sx = sx
         self.sy = sy
         self.eta = eta
         self.Q_star = Q_star
+        self.circ = circ
 
     def dist_to_pt(self, q):
+        if self.circ:
+            return np.linalg.norm(np.array(q)-self.c)
+        
         x, y = q
 
         min_x = self.xy[0]
@@ -32,7 +38,10 @@ class Obstacle(object):
 
         return np.linalg.norm([dx,dy])
 
+
     def closest_point_on_obs(self, q):
+        if self.circ:
+            return self.c
 
         x, y = q
 
