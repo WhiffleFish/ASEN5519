@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Rectangle, Polygon
 import logging
 
 class Obstacle(object):
@@ -36,7 +36,7 @@ class WaveFront(object):
         self.obstacles = obstacles
         
 
-        if obstacles:
+        if obstacles is not None:
             self.dx = dx
             self.xlim, self.ylim = self.get_border_vals(q0,qgoal,obstacles, pad)
 
@@ -47,7 +47,8 @@ class WaveFront(object):
             self.obs_grid = self.get_obstacle_grid(self.X, self.Y, obstacles)
             self.update()
         else:
-            assert (obs_grid is not None) and x and y, "obs_grid, x array, and y array need to be provided"
+            assert (obs_grid is not None) and (x is not None) and (y is not None), "obs_grid, x array, and y array need to be provided"
+            self.obs_grid = obs_grid
             self.x = x.round(10)
             self.y = y.round(10)
             self.dx = np.round(self.x[1]-self.x[0],10)
@@ -127,6 +128,7 @@ class WaveFront(object):
                     k = tuple(k)
                     if G[k] == G[q]-1:
                         path.append(k)
+                        
                         q = k
                         break
 
@@ -135,7 +137,10 @@ class WaveFront(object):
         # Instantiate WaveFront value grid
         self.WF_grid = self.obs_grid.copy()
         # Set goal grid value to 2
-        self.WF_grid[(self.X == self.qgoal[0]) & (self.Y == self.qgoal[1])] = 2
+
+        self.WF_grid[(self.X.round(10) == self.qgoal[0].round(10)) & (self.Y.round(10) == self.qgoal[1].round(10))] = 2
+        # self.WF_grid[(self.X == self.qgoal[0]) & (self.Y == self.qgoal[1])] = 2
+        
         # Starting coordinate (qg_gp) for WaveFront is qgoal grid position with max starting board value
         qg_gp = np.unravel_index(np.argmax(self.WF_grid, axis=None), self.WF_grid.shape)
         # Apply WaveFill to WF_grid
@@ -150,17 +155,30 @@ class WaveFront(object):
         self.path_length = (len(self.path)-1)*self.dx
 
 
-    def plot_path(self,figsize=(12,7)):
+    def plot_path(self,figsize=(12,7),circle_r=0.25):
         fig, ax = plt.subplots(figsize=figsize)
         ax.imshow(self.obs_grid, origin='lower', extent=[*self.xlim,*self.ylim], cmap='gray_r')
         ax.plot(self.path[:,0],self.path[:,1], 'g--')
-        ax.add_patch(Circle(self.qgoal,0.5,fill=False, ec='red'))
+        ax.add_patch(Circle(self.qgoal,circle_r,fill=False, ec='red'))
         ax.set_title("WaveFront Path")
+        ax.set_xlabel(r"$\theta_2$ (rad)")
+        ax.set_ylabel(r"$\theta_1$ (rad)")
         return fig, ax
 
     def plot_wavefront(self,figsize=(12,7)):
         fig, ax = plt.subplots(figsize=figsize)
         ax.imshow(self.WF_grid, origin='lower', extent=[*self.xlim,*self.ylim])
         ax.set_title("WaveFront Value Heatmap")
+        ax.set_xlabel(r"$\theta_2$ (rad)")
+        ax.set_ylabel(r"$\theta_1$ (rad)")
         return fig, ax
         
+    def plot_arm_path(self, CS, figsize=(12,7),cmap='cool'):
+        fig, ax = plt.subplots(figsize=figsize)
+        joint_coords = [CS.joint_coords(*thetas[::-1]) for thetas in [self.path[0],*self.path[1:-1:4],self.path[-1]]]
+        rgbs = plt.cm.get_cmap(cmap)(np.linspace(0,1,len(joint_coords)))
+        for obs in CS.obstacles:
+            ax.add_patch(Polygon(obs.verts))
+        for i,(x1,y1,x2,y2) in enumerate(joint_coords):
+            ax.plot([0,x1,x2],[0,y1,y2], c=rgbs[i])
+
