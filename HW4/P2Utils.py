@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Circle
 import networkx as nx
 import timeit
 from tqdm import tqdm
@@ -155,9 +155,9 @@ class PRMSolver:
 
     @staticmethod
     def a_star(G, start, goal, use_heuristic=True):
-        queue = [(0, start, 0, None)] # (priority, node_num, reach_cost, parent)
+        queue = [(0, start, 0, None)] # (priority, node_num, reach_cost, parent) OPEN
         
-        prev_queued = {} # KEY : node ,       VALUE: (reach_cost, heuristic)
+        prev_queued = {} # KEY : node ,      VALUE: (reach_cost, heuristic)
         explored = {} # KEY : explored node, VALUE: parent of explored node
         
         while queue:
@@ -221,7 +221,7 @@ class PRMSolver:
             colors = 'blue'
             title = None
         
-        ax.set_title(title)
+        ax.set_title(title, fontsize=20)
 
         if path_only and self.path is not None:
             nx.draw(self.Graph,
@@ -241,7 +241,10 @@ class PRMSolver:
                 node_size=node_size,
                 node_color = colors
             )
+        ax.set_aspect('equal')
         plt.draw()
+
+        ax.add_patch(Circle(self.qgoal,0.25,fill=False, ec='green'))
 
         for obs in self.obstacles:
             ax.add_patch(Rectangle(obs.xy,obs.sx, obs.sy, fc='red'))
