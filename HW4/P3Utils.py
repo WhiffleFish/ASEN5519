@@ -171,6 +171,9 @@ class RRTSolver:
         start = True
         end = False
         while not end:
+            # Accidentally made connectRRT
+            # Didn't want things to break so just terminate while loop after 1 iteration
+            end = True
             # Gen new point
             if self.get_distance(qnew, qrand) < self.step_size:
                 x_new, y_new = qrand[0], qrand[1]
