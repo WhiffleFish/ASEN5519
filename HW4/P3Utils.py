@@ -4,6 +4,7 @@ from matplotlib.patches import Rectangle, Circle
 import networkx as nx
 import timeit
 from tqdm import tqdm
+from collections import OrderedDict
 
 class Obstacle:
 
@@ -110,8 +111,9 @@ class RRTSolver:
         self.ylim = ylim
         self.step_size = step_size
         self.Graph = nx.Graph()
+        self._init_dist = np.linalg.norm(self.qgoal - self.qstart)
         self.Graph.add_nodes_from(
-            [(1,dict(pos=(self.qstart), heuristic=0))]
+            [(1,dict(pos=(self.qstart), heuristic=self._init_dist))]
             )
         self._c = 1
         self.path = None
@@ -209,59 +211,50 @@ class RRTSolver:
 
     @staticmethod
     def a_star(G, start=1, goal=0, use_heuristic=True):
-        queue = [(0, start, 0, None)] # (priority, node_num, reach_cost, parent)
-        
-        prev_queued = {} # KEY : node ,       VALUE: (reach_cost, heuristic)
-        explored = {} # KEY : explored node, VALUE: parent of explored node
-        
-        while queue:
-            # Retrieve node with lowest priority score (top of queue)
-            priority, node, reach_cost, parent = queue.pop(0)
-            
-            if node == goal:
-                path = [node]
+        open_dict = OrderedDict({start:G.nodes[start]['heuristic']})
+        dist_dict = {start:0}
+        closed_dict = OrderedDict({})
+        parent_dict = {start:None}
+        while open_dict:
+            cur_node, cur_node_priority = open_dict.popitem(0)
+            cur_node_g = dist_dict[cur_node]
+
+            if cur_node == goal:
+                path = [cur_node]
                 total_dist = 0
-                next_node = parent
-                # Backtrack through nodes (stored in explored list) to find path to goal
-                while next_node != None:
-                    path.append(next_node)
+                parent = parent_dict[cur_node]
+                while parent is not None:
+                    path.append(parent)
                     total_dist += G[path[-1]][path[-2]]['weight']
-                    next_node = explored[next_node]
+                    parent = parent_dict[parent]
                     
                 return list(reversed(path)), total_dist
             
-            if node in explored.keys():
-                if explored[node] == None:
-                    continue
-                
-                cost, heuristic = prev_queued[node]
-                if cost < reach_cost:
-                    continue
-            
-            # Update explored dict to include parent-child relationship of current node
-            explored[node] = parent 
-            
-            # Iterate over children of current node
-            for child, w in G[node].items(): 
-                new_cost = reach_cost + w['weight'] # Reach cost of child node
-                if child in prev_queued.keys():
-                    qcost, heuristic = prev_queued[child]
-                    if qcost <= new_cost:
+            for node_successor, params in G[cur_node].items():
+                weight = params['weight']
+                successor_current_cost = cur_node_g + weight
+
+                if node_successor in open_dict.keys():
+                    if dist_dict[node_successor] <= successor_current_cost:
                         continue
+                elif node_successor in closed_dict.keys():
+                    if dist_dict[node_successor] <= successor_current_cost:
+                        continue
+                    open_dict[node_successor] = closed_dict.pop(node_successor)
                 else:
-                    if use_heuristic:
-                        heuristic = G.nodes[child]['heuristic']
+                    if use_heuristic is True:
+                        heuristic = G.nodes[node_successor]['heuristic']
                     else:
                         heuristic = 0
-                    
-                prev_queued[child] = new_cost, heuristic
-                new_priority = new_cost + heuristic
-                queue.append((new_priority, child, new_cost, node))
+
+                    open_dict[node_successor] = successor_current_cost + heuristic
+                    dist_dict[node_successor] = successor_current_cost
+                    parent_dict[node_successor] = cur_node
             
-            queue.sort(key = lambda x: x[0]) # sort queue by priority
+            closed_dict[cur_node] = cur_node_priority
+            open_dict = OrderedDict(sorted(open_dict.items(), key=lambda x:x[1]))
         
-        # If goal never found, return None for both path and distance
-        return None,None
+        return None, None
     
     def search(self):
         count = 0
