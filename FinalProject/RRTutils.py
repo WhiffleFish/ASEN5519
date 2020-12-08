@@ -309,18 +309,12 @@ class KinodynamicRRT2D:
         else:
             x_new = qnew[0] + self.step_size*cos(theta)
             y_new = qnew[1] + self.step_size*sin(theta)
-        if self.rand_config:
-            theta = np.random.rand()*2 - 1 
-            u = np.random.rand()*2 - 1
-            v = np.random.rand()*2 - 1
-            q = np.random.rand()*2 - 1
-            x1 = np.array([u,v,q,theta,x_new,y_new]).reshape(6,1)
-        else:
-            theta_bound = np.pi/4
-            theta_p = max(min(theta,theta_bound),-theta_bound) # theta_p = theta for prev results
-            u = self.model.vel*cos(theta_p)
-            v = self.model.vel*sin(theta_p)
-            x1 = np.array([u,v,0,theta_p,x_new,y_new]).reshape(6,1)
+        
+        theta = np.random.rand()*2 - 1 
+        u = np.random.rand()*2 - 1
+        v = np.random.rand()*2 - 1
+        q = np.random.rand()*2 - 1
+        x1 = np.array([u,v,q,theta,x_new,y_new]).reshape(6,1)
 
         x0 = self.Graph.nodes[min_dist_node]['state'].reshape(6,1)
         
