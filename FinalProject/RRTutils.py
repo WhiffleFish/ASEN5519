@@ -134,6 +134,7 @@ class RECUV:
         # Grammian integration steps independent from dynamics propagation steps
         self.update_grammian(dt,500) 
 
+
     def update_grammian(self, dt, N):
         def gram_integrand(A,B,t):
             return expm(-A*t) @ B @ B.T @ expm(-A.T*t)
@@ -173,22 +174,34 @@ class RECUV:
         
         t_arr = np.linspace(0,Tprop,self.N)
         
-        def model(x, A, B, u):
+        def model(x, t, A, B, u):
             return np.squeeze(A @ x.reshape(-1,1) + B @ u)
         
         
         u = np.random.rand(2,1)
         u[0] = (u1lim[1]- u1lim[0])*u[0] + u1lim[0]
-        u[1] = (u2lim[1]- u2lim[0])*u[0] + u2lim[0]
-
+        u[1] = (u2lim[1]- u2lim[0])*u[1] + u2lim[0]
         X = odeint(model,np.squeeze(x0),t_arr, args=(self.A,self.B, u))
+        return X, u
+    
+    def gen_path(self, x0, u, Tprop):
+        u = u.reshape(6,1)
+        t_arr = np.linsapce(0,Tprop, self.N)
+        def model(x, t, A, B, u):
+            return np.squeeze(A @ x.reshape(-1,1) + B @ u)
+        
+        X = odeint(model, np.squeeze(x0), args = (self.A, self.B, u))
         return X, u
 
 
 class KinodynamicRRT2D:
 
-    def __init__(self, model, x0, qgoal, obstacles, eps, xlim, ylim, step_size, pgoal = 0.05, max_iter=10):
-        self.rand_config = True # Sample from config space randomly
+    def __init__(self, model, x0, qgoal, 
+        obstacles, eps, xlim, ylim, Tprop = 1, step_size = 1, 
+        pgoal = 0.05, max_iter=10, min_energy=False):
+        
+        self.Tprop = Tprop
+        self.min_energy = min_energy
         
         self.model = model
 
@@ -268,16 +281,27 @@ class KinodynamicRRT2D:
 
         return qnear, min_dist_node
 
-    def single_rand_sample(self, Tprop, u1lim=[-np.pi/3,np.pi/3], u2lim=[-np.pi/3,np.pi/3]):
-        # Find random node in Tree
-        node = np.random.choice(self.Graph.nodes)
+    def single_rand_sample(self, Tprop=None, u1lim=[1,2], u2lim=[-1,1]):
+        '''
+        Stochastically sample state space and action space
+        u1lim=[-np.pi/3,3*np.pi/2], u2lim=[-2,10] works
+        '''
+        if Tprop is None:
+            Tprop = self.Tprop
+        
+        # Find random node in Tree that does not result in collision
+        while True:
+            node = np.random.choice(self.Graph.nodes)
+            if not self.Graph.nodes[node]['coll']:
+                break
+
         x0 = self.Graph.nodes[node]['state']
         # Propagate Random Dynamics
         X, u = self.model.get_rand_path(x0, u1lim, u2lim)
 
         X, u, sol_flag, col_flag = self.sanitize_collision(X,u)
 
-        return node, X, u, sol_flag, col_flag
+        return node, X, np.squeeze(u), sol_flag, col_flag
 
 
     def single_det_sample(self):
@@ -291,7 +315,7 @@ class KinodynamicRRT2D:
                 x_range = self.xlim[1] - self.xlim[0]
                 y_range = self.ylim[1] - self.ylim[0]
                 qrand = np.random.rand(2)*np.array([x_range, y_range]) + np.array([self.xlim[0],self.ylim[0]])
-                if not self.obstacles or not all([obs.is_colliding(qrand) for obs in self.obstacles]):
+                if not self.obstacles or all([not obs.is_colliding(qrand) for obs in self.obstacles]):
                     break
 
         qnear, min_dist_node = self.find_closest_node(qrand)
@@ -347,13 +371,16 @@ class KinodynamicRRT2D:
         return reversed(node_hist), X_hist, u_hist
 
 
-    def gen_samples(self,N=None):
+    def gen_samples(self,N=None, Tprop=None):
         if N is None:
             N = self.max_iter
         # Iterate until goal is found or max_iter reached
 
         for i in trange(N):
-            prev_node, X, u, goal_flag, col_flag = self.single_det_sample()
+            if self.min_energy:
+                prev_node, X, u, goal_flag, col_flag = self.single_det_sample()
+            else:
+                prev_node, X, u, goal_flag, col_flag = self.single_rand_sample(Tprop)
             self.Graph.add_node(
                 self._c+1,
                 pos = X[-1,-2:],
