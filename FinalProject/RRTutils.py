@@ -6,6 +6,7 @@ from numpy import cos, matmul, sin, zeros
 from scipy.integrate import odeint
 from scipy.linalg import expm
 from tqdm import tqdm, trange
+import control
 
 
 class Obstacle:
@@ -102,10 +103,13 @@ class Obstacle:
         return False
 
 class RECUV:
-    def __init__(self, dt=3, N=100, vel = 1):
+    def __init__(self, dt=3, N=100, vel = 1, Q=np.diag([1e-5,1e-5,1e-5,1e-5,1,1]), R=np.eye(2)*1e-1):
         self.dt = dt
         self.N = N
         self.vel = vel
+        self.Q = Q
+        self.R = R
+
         self.A = np.array(
             [[-0.3206, 0.3514, 0, -9.8048, 0, 0],
             [-0.9338,-6.8632,19.8386,-0.3187, 0, -0.0004],
@@ -134,6 +138,9 @@ class RECUV:
         # Grammian integration steps independent from dynamics propagation steps
         self.update_grammian(dt,500) 
 
+        K,S,_ = control.lqr(self.A,self.B,Q,R) # LQR Proportional Feedback Matrix
+        self.K = np.array(K)
+        self.S = np.array(S)
 
     def update_grammian(self, dt, N):
         def gram_integrand(A,B,t):
@@ -160,9 +167,22 @@ class RECUV:
         def model(x, t, A, B, r, ufunc):
             return np.squeeze(A @ x.reshape(-1,1) + B @ ufunc(A, B, r, t))
 
-        y = odeint(model,np.squeeze(x0),t_arr, args=(self.A,self.B, r, ufunc))
+        X = odeint(model,np.squeeze(x0),t_arr, args=(self.A,self.B, r, ufunc))
 
-        return y, us
+        return X, us
+
+
+    def get_lqr_path(self, x0, x1, Tprop):
+        
+        t_arr = np.linspace(0,Tprop,self.N)
+
+        def model(x,t,A,B,K,xref):
+            return np.squeeze((A-B@K) @ x.reshape(6,1) + B@K@xref)
+        
+        X = odeint(model,np.squeeze(x0),t_arr, args=(self.A,self.B, self.K, x1))
+        u = np.squeeze(np.array([-self.K@x.T for x in X]))
+        
+        return X,u
 
 
     def get_rand_path(self,x0, u1lim, u2lim,Tprop=None):
@@ -185,7 +205,7 @@ class RECUV:
         return X, u
     
     def gen_path(self, x0, u, Tprop):
-        u = u.reshape(6,1)
+        u = u.reshape(2,1)
         t_arr = np.linsapce(0,Tprop, self.N)
         def model(x, t, A, B, u):
             return np.squeeze(A @ x.reshape(-1,1) + B @ u)
@@ -193,15 +213,14 @@ class RECUV:
         X = odeint(model, np.squeeze(x0), args = (self.A, self.B, u))
         return X, u
 
-
 class KinodynamicRRT2D:
 
     def __init__(self, model, x0, qgoal, 
         obstacles, eps, xlim, ylim, Tprop = 1, step_size = 1, 
-        pgoal = 0.05, max_iter=10, min_energy=False):
+        pgoal = 0.05, max_iter=10, method="LQR"):
         
         self.Tprop = Tprop
-        self.min_energy = min_energy
+        self.method = method
         
         self.model = model
 
@@ -263,6 +282,14 @@ class KinodynamicRRT2D:
         # return states, actions, goal_found_flag, collision_flag
         return X, u, False, False
 
+    def sample_pos(self):
+        while True:
+            qrand = np.random.rand(2)
+            qrand[0] = (self.xlim[1]- self.xlim[0])*qrand[0] + self.xlim[0]
+            qrand[1] = (self.ylim[1]- self.ylim[0])*qrand[1] + self.ylim[0]
+
+            if not self.obstacles or all(not obs.is_colliding(qrand) for obs in self.obstacles):
+                return qrand
 
     def find_closest_node(self,qrand):
         # Find closest point on current tree
@@ -304,7 +331,17 @@ class KinodynamicRRT2D:
         return node, X, np.squeeze(u), sol_flag, col_flag
 
 
-    def single_det_sample(self):
+    def LQR_sample(self):
+        qrand = self.sample_pos()
+        qnear, min_dist_node = self.find_closest_node(qrand)
+        x0 = self.Graph.nodes[min_dist_node]['state'].reshape(6,1)
+        xrand = np.array([0,0,0,0,*qrand]).reshape(6,1)
+        X, u = self.model.get_lqr_path(x0,xrand, self.Tprop)
+        X, u, sol_flag, col_flag = self.sanitize_collision(X,u)
+        return min_dist_node, X, u, sol_flag, col_flag
+
+
+    def min_energy_sample(self):
         '''
         Stochastically sample state space; deterministic path to new sample
         '''
@@ -374,11 +411,15 @@ class KinodynamicRRT2D:
     def gen_samples(self,N=None, Tprop=None):
         if N is None:
             N = self.max_iter
+        if Tprop is None:
+            Tprop = self.Tprop
         # Iterate until goal is found or max_iter reached
 
         for i in trange(N):
-            if self.min_energy:
-                prev_node, X, u, goal_flag, col_flag = self.single_det_sample()
+            if self.method == "MinEnergy":
+                prev_node, X, u, goal_flag, col_flag = self.min_energy_sample()
+            elif self.method == "LQR":
+                prev_node, X, u, goal_flag, col_flag = self.LQR_sample()
             else:
                 prev_node, X, u, goal_flag, col_flag = self.single_rand_sample(Tprop)
             self.Graph.add_node(
@@ -421,3 +462,173 @@ class KinodynamicRRT2D:
             ax.add_patch(Rectangle(obs.xy,obs.sx, obs.sy, fc='red'))
         
         return fig, ax
+
+
+
+class LQR_RRTStar:
+    def __init__(self, model, xstart, qgoal, xlim, ylim, obstacles=[], goalprob=0.05, gamma=1, Tprop=5):
+        self.model = model
+        self.xstart = np.array(xstart).reshape(6,1)
+        self.qgoal = np.array(qgoal)
+        self.xlim = xlim
+        self.ylim = ylim
+        self.obstacles = obstacles
+        self.goalprob = goalprob
+        self.gamma = gamma # LQR_nearest calculation coefficient
+        self.Tprop = Tprop
+
+        self.Graph = nx.DiGraph()
+
+        self.Graph.add_nodes_from([(1,dict(
+            state=xstart
+            ))]
+            )
+        self._c = 1 # Node counter
+        self.solution_found = False
+
+    def is_inbounds(self,pt):
+        return (self.xlim[0] <= pt[0] <= self.xlim[1]) and (self.ylim[0] <= pt[1] <= self.ylim[1])
+
+    def is_path_collision_free(self, sigma):
+        for i in range(sigma.shape[0]-1):
+            
+            # Check Bounds
+            if not self.is_inbounds(sigma[i+1]):
+                return False
+
+            # Check Collision
+            for obs in self.obstacles:
+                if obs.is_segment_intersecting(sigma[i],sigma[i+1]):
+                    return False
+        
+        return True
+
+    @staticmethod
+    def path_cost(X):
+        return sum(np.linalg.norm(X[i+1,-2:] - X[i,-2:]) for i in range(len(X)-1))
+    
+    def point_cost(self,x):
+        return np.linalg.norm(np.squeeze(x[-2:])-self.qgoal)
+
+    def sample(self):
+        '''
+        Returns sample from state space (FLAT 6 element array)
+        '''
+        if np.random.rand() < self.goalprob:
+            return np.concat([np.random.rand(4),self.qgoal]).reshape(6,1)
+
+        while True:
+            qrand = np.random.rand(2)
+            qrand[0] = (self.xlim[1]- self.xlim[0])*qrand[0] + self.xlim[0]
+            qrand[1] = (self.ylim[1]- self.ylim[0])*qrand[1] + self.ylim[0]
+
+            if not self.obstacles or all(not obs.is_colliding(qrand) for obs in self.obstacles):
+                return np.concat([np.random.rand(4),qrand]).reshape(6,1)
+
+    def LQRNear(self, x):
+        '''
+        Returns number identifiers for LQR closest nodes
+        '''
+        S = self.model.S
+        n = len(self.Graph.nodes)
+        thresh = self.gamma*(np.log(n)/n)**(1/6)
+        
+        closest_nodes = []
+        for node in self.Graph.nodes:
+            v = self.Graph.nodes[node]['state']
+            if (v - x).T @ S @ (v-x) <= thresh:
+                closest_nodes.append(thresh)
+
+        return closest_nodes
+
+    def LQRNearest(self, x):
+        '''
+        Returns number identifier for LQR closest node
+        '''
+        min_cost = float('inf')
+        closest_node = None
+        
+        S = self.model.S
+        n = len(self.Graph.nodes)
+        
+        for node in self.Graph.nodes:
+            v = self.Graph.nodes[node]['state']
+            cost = (v - x).T @ S @ (v-x)
+            if cost <= min_cost:
+                min_cost = cost
+                closest_node = node
+
+        return closest_node
+
+    def LQRSteer(self, xnear, xnew, path=True):
+        X, u = self.model.get_lqr_path(xnear, xnew, self.Tprop)
+        if path:
+            return X,u
+        else:
+            return X[-1].reshape(6,1)
+
+    def choose_parent(self,near_nodes,new_node):
+        min_cost = float('inf')
+        xmin = None
+        sigma_min = None
+        min_node = None
+        xnew = self.Graph.nodes[new_node]
+
+        for near_node in near_nodes:
+            xnear = self.Graph.nodes[near_node]
+            sigma, _ = self.LQRSteer(xnear, xnew)
+            path_cost = self.path_cost(sigma)
+            point_cost = self.point_cost(xnear)
+
+            if path_cost + point_cost < min_cost:
+                min_cost = path_cost + point_cost
+                xmin = xnear
+                sigma_min = sigma
+                min_node = near_node
+        
+        return xmin, sigma_min, min_node
+
+    def rewire(self, near_nodes, new_node):
+        xnew = self.Graph.nodes[new_node]
+
+        for near_node in near_nodes:
+            xnear = self.Graph.nodes[near_node]
+            sigma, u = self.LQRSteer(xnew, xnear)
+            path_cost = self.path_cost(sigma)
+            point_cost = self.point_cost(xnear)
+
+            if path_cost + point_cost < self.point_cost(xnear):
+                if self.is_path_collision_free(sigma):
+                    parent_node = list(self.Graph.predecessors(near_node))[0]
+                    self.Graph.remove_edge(parent_node, near_node)
+                    self.Graph.add_edge(
+                        new_node, near_node,
+                        state_hist = sigma,
+                        action_hist = u
+                    )
+
+
+    def find_path(self,N):
+        for i in range(N):
+            xrand = self.sample()
+            xnearest = self.LQRNearest(self, xrand)
+            xnew, u = self.LQRSteer(xnearest, xrand, path=False)
+            Xnear = self.LQRNear(xnew)
+
+            xmin, sigma_min, min_node = self.choose_parent(Xnear, xnew)
+
+            if self.is_path_collision_free(sigma_min):
+                self.Graph.add_node(
+                    self._c+1,
+                    state = xmin
+                )
+                self.Graph.add_edge(
+                    min_node, self._c+1,
+                    state_hist = sigma_min,
+                    action_hist = u
+                )
+                self.rewire(Xnear, self._c+1)
+                self._c += 1
+
+        
+
